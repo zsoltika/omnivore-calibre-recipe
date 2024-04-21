@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
 __license__   = 'GPL v3'
-__copyright__ = '2010, Zsolt Botykai <zsoltika@gmail.com>'
+__copyright__ = '2024, Zsolt Botykai <zsolt.botykai@gmail.com>'
 '''
-A recipe for Calibre to fetch my Omnivore readingl list, generate an article list
-to fetch, then get rid of the unnecessary scrap at the site (e.g. facebook
-buttons, ads...)
-[[B]]'''
+A recipe for Calibre to fetch my Omnivore reading list, and create an EPUB 
+file'''
 
-# The recipe modifies the case of titles and searches via regexs
 import datetime
 import os
 import string
@@ -18,15 +15,16 @@ from omnivoreql import OmnivoreQL
 from    calibre.web.feeds.news       import BasicNewsRecipe
 from    calibre.ebooks.BeautifulSoup import Tag, NavigableString
 
-NOW = datetime.datetime.now()
+NOW   = datetime.datetime.now()
 TODAY = NOW.strftime("%Y-%m-%d")
+APIKEY = os.environ['OMNICALAPIKEY']
 
 class MyOmnivore(BasicNewsRecipe):
     title                   = u'My Omnivore reading list'
     __author__              = u'Zsolt Botykai '
     description             = u'My Omnivore reading list'
     INDEX                   = 'http://omnivore.app/'
-    language                = 'hu'
+    language                = 'en'
     simultaneous_downloads  = 2
     timefmt                 = ' [%Y-%m-%d %H:%M]'
     tags                    = u'reading-list, articles, newspapers'
@@ -43,11 +41,9 @@ class MyOmnivore(BasicNewsRecipe):
                     p { text-align: justify; margin_top: 0px; margin-bottom: 0px; }
                 '''
 
-    #masthead_url='https://c1.staticflickr.com/1/475/32050957890_e7d913da49_o.jpg'
-
     def parse_index(self):
         actdir = os.getcwd()
-        token = open('/home/zs/SRC/omnicalibre/API.key', 'r').read().strip()
+        token = open(APIKEY, 'r').read().strip()
         oc = OmnivoreQL(token)
         profile = oc.get_profile()
         user=profile['me']['profile']['username']
@@ -88,11 +84,17 @@ class MyOmnivore(BasicNewsRecipe):
                             'url'         : 'file://'+artfile,
                             'date'        : TODAY,
                             'description' : ''})
-
+            
+            # This does not work sometimes TODO check, debug
+            # It should set the actual articles archived state
             oc.archive_article(id)
+            
             section_title = what + ' saved articles @ ' + TODAY
             feeds.append((section_title, oarticles))
 
+        # There will be two sections in the generated EPUB:
+        # One with (unread) articles saved ages ago and one with newly saved 
+        # articles.
         articles = oc.get_articles(limit=10, query='sort:saved-asc')
         getarticles("Earlier")
         articles = oc.get_articles(limit=10, query='sort:saved-desc')
