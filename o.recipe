@@ -1,0 +1,101 @@
+# -*- coding: utf-8 -*-
+__license__   = 'GPL v3'
+__copyright__ = '2010, Zsolt Botykai <zsoltika@gmail.com>'
+'''
+A recipe for Calibre to fetch my Omnivore readingl list, generate an article list
+to fetch, then get rid of the unnecessary scrap at the site (e.g. facebook
+buttons, ads...)
+[[B]]'''
+
+# The recipe modifies the case of titles and searches via regexs
+import datetime
+import os
+import string
+import sys
+
+from omnivoreql import OmnivoreQL
+
+from    calibre.web.feeds.news       import BasicNewsRecipe
+from    calibre.ebooks.BeautifulSoup import Tag, NavigableString
+
+NOW = datetime.datetime.now()
+TODAY = NOW.strftime("%Y-%m-%d")
+
+class MyOmnivore(BasicNewsRecipe):
+    title                   = u'My Omnivore reading list'
+    __author__              = u'Zsolt Botykai '
+    description             = u'My Omnivore reading list'
+    INDEX                   = 'http://omnivore.app/'
+    language                = 'hu'
+    simultaneous_downloads  = 2
+    timefmt                 = ' [%Y-%m-%d %H:%M]'
+    tags                    = u'reading-list, articles, newspapers'
+    publication_type        = 'magazine'
+    remove_javascript       = True
+    remove_empty_feeds      = True
+    no_stylesheets          = True
+    encoding = 'UTF-8'
+
+    # without the background color setup, the conversion to pdf produced
+    # black pages with white text
+    extra_css = '''
+                    body { background-color: white; color: black; }
+                    p { text-align: justify; margin_top: 0px; margin-bottom: 0px; }
+                '''
+
+    #masthead_url='https://c1.staticflickr.com/1/475/32050957890_e7d913da49_o.jpg'
+
+    def parse_index(self):
+        actdir = os.getcwd()
+        token = open('/home/zs/SRC/omnicalibre/API.key', 'r').read().strip()
+        oc = OmnivoreQL(token)
+        profile = oc.get_profile()
+        user=profile['me']['profile']['username']
+        feeds=[]
+        def getarticles(what):
+            oarticles = []
+            for a in articles['search']['edges']:
+                article = oc.get_article(username=user, slug=a['node']['slug'])
+                if article['article']['article']['isArchived'] is False:
+                    content = ''
+                    title   = article['article']['article']['title']
+                    title   = title.replace('&','&amp;')
+                    id      = article['article']['article']['id']
+                    url     = article['article']['article']['url']
+                    author  = article['article']['article']['author']
+                    labels  = article['article']['article']['labels']
+                    if not author: author = "No author"
+                    if not title: author = "No title"
+                    if not url: author = "No URL"
+                    if labels and 'name' in labels[0]:
+                        labellist = [dict['name'] for dict in labels]
+                    clabel = ', '.join(['#' + str(e) + ' ' for e in labellist])
+                    if author:
+                        content += '<h3>' + author + '</h3>'
+                    if title:
+                        content += '<h2>' + title + '</h2>'
+                    if url:
+                        content += '<h6>' + url + '</h6>'
+                    if clabel:
+                        content += '<h6>' + clabel + '</h6>'
+                    content += article['article']['article']['content']
+                    artfile = actdir + '/' + id + '.html'
+                    with open(artfile, 'w') as f:
+                        f.write(content)
+                    oarticles.append(
+                        {
+                            'title'       : title,
+                            'url'         : 'file://'+artfile,
+                            'date'        : TODAY,
+                            'description' : ''})
+
+            oc.archive_article(id)
+            section_title = what + ' saved articles @ ' + TODAY
+            feeds.append((section_title, oarticles))
+
+        articles = oc.get_articles(limit=10, query='sort:saved-asc')
+        getarticles("Earlier")
+        articles = oc.get_articles(limit=10, query='sort:saved-desc')
+        getarticles("Newly")
+
+        return feeds
