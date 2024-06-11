@@ -2,7 +2,7 @@
 __license__   = 'GPL v3'
 __copyright__ = '2024, Zsolt Botykai <zsolt.botykai@gmail.com>'
 '''
-A recipe for Calibre to fetch my Omnivore reading list, and create an EPUB 
+A recipe for Calibre to fetch my Omnivore reading list, and create an EPUB
 file'''
 
 import datetime
@@ -53,13 +53,13 @@ class MyOmnivore(BasicNewsRecipe):
             for a in articles['search']['edges']:
                 article = oc.get_article(username=user, slug=a['node']['slug'])
                 if article['article']['article']['isArchived'] is False:
-                    content = ''
-                    title   = article['article']['article']['title']
-                    title   = title.replace('&','&amp;')
-                    id      = article['article']['article']['id']
-                    url     = article['article']['article']['url']
-                    author  = article['article']['article']['author']
-                    labels  = article['article']['article']['labels']
+                    content    = ''
+                    title      = article['article']['article']['title']
+                    title      = title.replace('&','&amp;')
+                    article_id = article['article']['article']['id']
+                    url        = article['article']['article']['url']
+                    author     = article['article']['article']['author']
+                    labels     = article['article']['article']['labels']
                     if not author: author = "No author"
                     if not title: author = "No title"
                     if not url: author = "No URL"
@@ -67,15 +67,15 @@ class MyOmnivore(BasicNewsRecipe):
                         labellist = [dict['name'] for dict in labels]
                     clabel = ', '.join(['#' + str(e) + ' ' for e in labellist])
                     if author:
-                        content += '<h3>' + author + '</h3>'
+                        content += '<h4>' + author + '</h4>'
                     if title:
-                        content += '<h2>' + title + '</h2>'
-                    if url:
-                        content += '<h6>' + url + '</h6>'
-                    if clabel:
-                        content += '<h6>' + clabel + '</h6>'
+                        content += '<h3>' + title + '</h3>'
                     content += article['article']['article']['content']
-                    artfile = actdir + '/' + id + '.html'
+                    if url:
+                        content += '<br /><h6>Eredeti link: ' + url + '</h6>'
+                    if clabel:
+                        content += '<h6>Címkék: ' + clabel + '</h6>'
+                    artfile = actdir + '/' + article_id + '.html'
                     with open(artfile, 'w') as f:
                         f.write(content)
                     oarticles.append(
@@ -84,20 +84,19 @@ class MyOmnivore(BasicNewsRecipe):
                             'url'         : 'file://'+artfile,
                             'date'        : TODAY,
                             'description' : ''})
-            
-            # This does not work sometimes TODO check, debug
-            # It should set the actual articles archived state
-            oc.archive_article(id)
-            
-            section_title = what + ' saved articles @ ' + TODAY
+                    if article_id:
+                        oc.archive_article(article_id)
+                        self.log("Archived: " + title + "; id: " + article_id)
+
+            section_title = what + ' mentett cikkek @ ' + TODAY
             feeds.append((section_title, oarticles))
 
         # There will be two sections in the generated EPUB:
-        # One with (unread) articles saved ages ago and one with newly saved 
+        # One with (unread) articles saved ages ago and one with newly saved
         # articles.
-        articles = oc.get_articles(limit=10, query='sort:saved-asc')
-        getarticles("Earlier")
-        articles = oc.get_articles(limit=10, query='sort:saved-desc')
-        getarticles("Newly")
+        articles = oc.get_articles(limit=20, query='sort:saved-asc')
+        getarticles("Régen")
+        articles = oc.get_articles(limit=20, query='sort:saved-desc')
+        getarticles("Mostanában")
 
         return feeds
